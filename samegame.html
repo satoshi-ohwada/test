@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>さめがめ (SameGame)</title>
+    <style>
+        body { text-align: center; font-family: sans-serif; background: #f0f0f0; margin: 20px 0; }
+        .controls { margin-bottom: 10px; background: #fff; display: inline-block; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .controls label { margin: 0 10px; cursor: pointer; font-weight: bold; }
+        .config-group { margin: 5px 0; }
+        .config-title { font-size: 14px; color: #555; display: inline-block; width: 80px; text-align: right; }
+        
+        #game-board { display: inline-grid; gap: 2px; background: #ccc; padding: 4px; border-radius: 4px; }
+        .cell { border-radius: 3px; cursor: pointer; transition: transform 0.1s, filter 0.1s; box-sizing: border-box; }
+        
+        .highlight { 
+            transform: scale(1.1); 
+            z-index: 10; 
+            filter: brightness(1.3);
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+        }
+        
+        .color-0 { background: #333; cursor: default; }
+        .color-1 { background: #ff4d4d; }
+        .color-2 { background: #4da6ff; }
+        .color-3 { background: #5cd65c; }
+        .color-4 { background: #ffcc00; }
+        .color-5 { background: #b366ff; }
+
+        /* ボタンのスタイル共通化 */
+        .btn {
+            padding: 6px 20px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            border-radius: 4px; 
+            border: 1px solid #999; 
+            background: #fff;
+            margin: 0 5px;
+            transition: opacity 0.2s;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>JavaScript さめがめ</h1>
+    
+    <div class="controls">
+        <div class="config-group">
+            <span class="config-title">色数：</span>
+            <label><input type="radio" name="difficulty" value="3" onchange="changeDifficulty(3)"> 3色</label>
+            <label><input type="radio" name="difficulty" value="4" checked onchange="changeDifficulty(4)"> 4色</label>
+            <label><input type="radio" name="difficulty" value="5" onchange="changeDifficulty(5)"> 5色</label>
+        </div>
+        <div class="config-group">
+            <span class="config-title">ブロック数：</span>
+            <label><input type="radio" name="size" value="small" checked onchange="changeSize('small')"> 少なめ (12×10)</label>
+            <label><input type="radio" name="size" value="medium" onchange="changeSize('medium')"> 普通 (18×12)</label>
+            <label><input type="radio" name="size" value="large" onchange="changeSize('large')"> 多め (24×14)</label>
+        </div>
+    </div>
+
+    <div>
+        <div id="game-board"></div>
+    </div>
+    
+    <p>スコア: <span id="score">0</span></p>
+    
+    <div>
+        <button class="btn" onclick="initGame()">リセット</button>
+        <button id="undo-btn" class="btn" onclick="undo()" disabled>一手戻す</button>
+    </div>
+
+<script>
+const SIZE_SETTINGS = {
+    small:  { rows: 10, cols: 12, cellSize: '40px' },
+    medium: { rows: 12, cols: 18, cellSize: '30px' },
+    large:  { rows: 14, cols: 24, cellSize: '24px' }
+};
+
+let currentSizePreset = 'small';
+let rows = SIZE_SETTINGS.small.rows;
+let cols = SIZE_SETTINGS.small.cols;
+let cellSize = SIZE_SETTINGS.small.cellSize;
+
+let colorsCount = 4; 
+let board = [];
+let score = 0;
+let highlightedCells = [];
+let history = []; // 履歴を保存する配列
+
+function changeDifficulty(num) {
+    colorsCount = num;
+    initGame();
+}
+
+function changeSize(presetName) {
+    currentSizePreset = presetName;
+    rows = SIZE_SETTINGS[presetName].rows;
+    cols = SIZE_SETTINGS[presetName].cols;
+    cellSize = SIZE_SETTINGS[presetName].cellSize;
+    initGame();
+}
+
+function initGame() {
+    score = 0;
+    history = []; // 履歴をリセット
+    updateUndoButton();
+    
+    document.getElementById('score').innerText = score;
+    board = [];
+    
+    for (let r = 0; r < rows; r++) {
+        board[r] = [];
+        for (let c = 0; c < cols; c++) {
+            board[r][c] = Math.floor(Math.random() * colorsCount) + 1;
+        }
+    }
+    drawBoard();
+}
+
+// 現在の盤面とスコアを履歴に保存する
+function saveState() {
+    // 2次元配列の深いコピー（ディープコピー）を作成
+    const boardCopy = board.map(row => [...row]);
+    history.push({ board: boardCopy, score: score });
+    updateUndoButton();
+}
+
+// 一手戻す処理
+function undo() {
+    if (history.length === 0) return;
+    
+    // 履歴から最後の状態を取り出す
+    const previousState = history.pop();
+    board = previousState.board;
+    score = previousState.score;
+    
+    // 画面に反映
+    document.getElementById('score').innerText = score;
+    drawBoard();
+    updateUndoButton();
+}
+
+// 一手戻すボタンの有効/無効を切り替える
+function updateUndoButton() {
+    const btn = document.getElementById('undo-btn');
+    if (btn) {
+        btn.disabled = history.length === 0;
+    }
+}
+
+function drawBoard() {
+    const container = document.getElementById('game-board');
+    container.innerHTML = '';
+    
+    container.style.gridTemplateRows = `repeat(${rows}, ${cellSize})`;
+    container.style.gridTemplateColumns = `repeat(${cols}, ${cellSize})`;
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const cell = document.createElement('div');
+            cell.className = `cell color-${board[r][c]}`;
+            cell.style.width = cellSize;
+            cell.style.height = cellSize;
+            cell.id = `cell-${r}-${c}`;
+
+            if (board[r][c] !== 0) {
+                cell.addEventListener('click', () => handleCellClick(r, c));
+                cell.addEventListener('mouseenter', () => handleMouseEnter(r, c));
+                cell.addEventListener('mouseleave', clearHighlight);
+            }
+            container.appendChild(cell);
+        }
+    }
+}
+
+function handleMouseEnter(r, c) {
+    const targetColor = board[r][c];
+    if (targetColor === 0) return;
+
+    const connected = getConnectedBlocks(r, c, targetColor);
+
+    if (connected.length >= 2) {
+        connected.forEach(([br, bc]) => {
+            const cell = document.getElementById(`cell-${br}-${bc}`);
+            if (cell) {
+                cell.classList.add('highlight');
+                highlightedCells.push(cell);
+            }
+        });
+    }
+}
+
+function clearHighlight() {
+    highlightedCells.forEach(cell => {
+        cell.classList.remove('highlight');
+    });
+    highlightedCells = [];
+}
+
+function handleCellClick(r, c) {
+    const targetColor = board[r][c];
+    if (targetColor === 0) return;
+
+    const connected = getConnectedBlocks(r, c, targetColor);
+
+    if (connected.length >= 2) {
+        // 消す直前の状態を保存
+        saveState();
+
+        score += Math.pow(connected.length - 2, 2);
+        document.getElementById('score').innerText = score;
+
+        connected.forEach(([br, bc]) => board[br][bc] = 0);
+
+        applyGravity();
+        compactColumns();
+        
+        clearHighlight();
+        drawBoard();
+
+        setTimeout(checkGameOver, 50);
+    }
+}
+
+function getConnectedBlocks(startR, startC, color) {
+    const queue = [[startR, startC]];
+    const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
+    const result = [];
+
+    visited[startR][startC] = true;
+
+    while (queue.length > 0) {
+        const [r, c] = queue.shift();
+        result.push([r, c]);
+
+        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        
+        for (const [dr, dc] of directions) {
+            const nr = r + dr;
+            const nc = c + dc;
+
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                if (!visited[nr][nc] && board[nr][nc] === color) {
+                    visited[nr][nc] = true;
+                    queue.push([nr, nc]);
+                }
+            }
+        }
+    }
+    return result;
+}
+
+function checkGameOver() {
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const color = board[r][c];
+            if (color === 0) continue;
+
+            if (c + 1 < cols && board[r][c + 1] === color) return; 
+            if (r + 1 < rows && board[r + 1][c] === color) return; 
+        }
+    }
+
+    if (board[rows - 1][0] === 0) {
+        score += 1000; 
+        document.getElementById('score').innerText = score;
+        alert(`素晴らしい！全消し達成！\n最終スコア: ${score}`);
+    } else {
+        alert(`ゲームオーバー（手詰まりです）\n最終スコア: ${score}`);
+    }
+}
+
+function applyGravity() {
+    for (let c = 0; c < cols; c++) {
+        let emptyRow = rows - 1;
+        for (let r = rows - 1; r >= 0; r--) {
+            if (board[r][c] !== 0) {
+                if (r !== emptyRow) {
+                    board[emptyRow][c] = board[r][c];
+                    board[r][c] = 0;
+                }
+                emptyRow--;
+            }
+        }
+    }
+}
+
+function compactColumns() {
+    let emptyCol = 0;
+    for (let c = 0; c < cols; c++) {
+        if (board[rows - 1][c] !== 0) {
+            if (c !== emptyCol) {
+                for (let r = 0; r < rows; r++) {
+                    board[r][emptyCol] = board[r][c];
+                    board[r][c] = 0;
+                }
+            }
+            emptyCol++;
+        }
+    }
+}
+
+initGame();
+</script>
+
+</body>
+</html>
