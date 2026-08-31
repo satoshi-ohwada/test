@@ -43,9 +43,29 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+        #overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        #message-box {
+            background: #fff;
+            padding: 30px 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            font-size: 24px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
+    <div id="overlay">
+        <div id="message-box"></div>
+    </div>
 
     <h1>JavaScript さめがめ</h1>
     
@@ -68,7 +88,7 @@
         <div id="game-board"></div>
     </div>
     
-    <p>スコア: <span id="score">0</span></p>
+    <p>スコア: <span id="score">0</span> （ハイスコア: <span id="highscore">0</span>）</p>
     
     <div>
         <button class="btn" onclick="initGame()">リセット</button>
@@ -90,8 +110,18 @@ let cellSize = SIZE_SETTINGS.small.cellSize;
 let colorsCount = 4; 
 let board = [];
 let score = 0;
+let highScore = 0;
 let highlightedCells = [];
 let history = []; // 履歴を保存する配列
+
+function updateScore(add) {
+    score += add;
+    if (score > highScore) {
+        highScore = score;
+        document.getElementById('highscore').innerText = highScore;
+    }
+    document.getElementById('score').innerText = score;
+}
 
 function changeDifficulty(num) {
     colorsCount = num;
@@ -213,8 +243,7 @@ function handleCellClick(r, c) {
         // 消す直前の状態を保存
         saveState();
 
-        score += Math.pow(connected.length - 2, 2);
-        document.getElementById('score').innerText = score;
+        updateScore(Math.pow(connected.length - 2, 2));
 
         connected.forEach(([br, bc]) => board[br][bc] = 0);
 
@@ -267,13 +296,31 @@ function checkGameOver() {
         }
     }
 
+    let message = "";
     if (board[rows - 1][0] === 0) {
-        score += 1000; 
-        document.getElementById('score').innerText = score;
-        alert(`素晴らしい！全消し達成！\n最終スコア: ${score}`);
+        updateScore(1000);
+        message = `素晴らしい！全消し達成！<br>現在のスコア: ${score}`;
     } else {
-        alert(`ゲームオーバー（手詰まりです）\n最終スコア: ${score}`);
+        message = `ゲームオーバー（手詰まりです）<br>現在のスコア: ${score}`;
     }
+
+    const overlay = document.getElementById('overlay');
+    const msgBox = document.getElementById('message-box');
+    msgBox.innerHTML = message;
+    overlay.style.display = 'flex';
+
+    // 5秒のウェイトを入れて新しい面に遷移 (スコアは維持)
+    setTimeout(() => {
+        overlay.style.display = 'none';
+        history = [];
+        updateUndoButton();
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                board[r][c] = Math.floor(Math.random() * colorsCount) + 1;
+            }
+        }
+        drawBoard();
+    }, 5000);
 }
 
 function applyGravity() {
