@@ -113,6 +113,7 @@ let score = 0;
 let highScore = 0;
 let highlightedCells = [];
 let history = []; // 履歴を保存する配列
+let nextStageTimer = null; // 次の面への遷移用タイマー
 
 function updateScore(add) {
     score += add;
@@ -137,6 +138,10 @@ function changeSize(presetName) {
 }
 
 function initGame() {
+    if (nextStageTimer) {
+        clearTimeout(nextStageTimer);
+        nextStageTimer = null;
+    }
     score = 0;
     history = []; // 履歴をリセット
     updateUndoButton();
@@ -299,28 +304,46 @@ function checkGameOver() {
     let message = "";
     if (board[rows - 1][0] === 0) {
         updateScore(1000);
-        message = `素晴らしい！全消し達成！<br>現在のスコア: ${score}`;
+        message = `素晴らしい！全消し達成！<br>今回のスコア: ${score}`;
     } else {
-        message = `ゲームオーバー（手詰まりです）<br>現在のスコア: ${score}`;
+        message = `ゲームオーバー（手詰まりです）<br>今回のスコア: ${score}`;
     }
 
     const overlay = document.getElementById('overlay');
     const msgBox = document.getElementById('message-box');
-    msgBox.innerHTML = message;
+    msgBox.innerHTML = `
+        <div>${message}</div>
+        <div style="margin-top: 20px;">
+            <button class="btn" onclick="startNextStage()" style="padding: 8px 24px; font-size: 18px; font-weight: bold;">次の面へ進む</button>
+        </div>
+    `;
     overlay.style.display = 'flex';
 
-    // 5秒のウェイトを入れて新しい面に遷移 (スコアは維持)
-    setTimeout(() => {
-        overlay.style.display = 'none';
-        history = [];
-        updateUndoButton();
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                board[r][c] = Math.floor(Math.random() * colorsCount) + 1;
-            }
-        }
-        drawBoard();
+    // 5秒のウェイトを入れて自動でも新しい面に遷移
+    if (nextStageTimer) clearTimeout(nextStageTimer);
+    nextStageTimer = setTimeout(() => {
+        startNextStage();
     }, 5000);
+}
+
+// 次の面に進む処理（ボタン押下またはタイマーで呼び出し）
+function startNextStage() {
+    if (nextStageTimer) {
+        clearTimeout(nextStageTimer);
+        nextStageTimer = null;
+    }
+    const overlay = document.getElementById('overlay');
+    overlay.style.display = 'none';
+    score = 0; // 得点は累積せず毎回リセット
+    document.getElementById('score').innerText = score;
+    history = [];
+    updateUndoButton();
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            board[r][c] = Math.floor(Math.random() * colorsCount) + 1;
+        }
+    }
+    drawBoard();
 }
 
 function applyGravity() {
